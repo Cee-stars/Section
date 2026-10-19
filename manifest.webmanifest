@@ -1,0 +1,14 @@
+{
+  "name": "2秒ドリル",
+  "short_name": "2秒ドリル",
+  "description": "場面を見て、2〜3秒で短い英語を声に出す毎日5分のドリル",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F7FA",
+  "theme_color": "#111318",
+  "icons": [
+    { "src": "./icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111318">
+<title>2秒ドリル</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+:root{
+  --ui: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+  --bg:#F6F7FA; --card:#FFFFFF; --ink:#111318; --dim:#6B7280; --line:#E6E9F0;
+  --accent:#FF7A18; --accent-soft:#FFF3E8;
+  --go:#00A56E; --go-soft:#E6F7F1;
+  --blue:#00A9E0; --blue-soft:#E6F6FD;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1013; --card:#171A20; --ink:#F2F4F8; --dim:#9AA2B1; --line:#252A33;
+    --accent-soft:#2A1C10; --go-soft:#10241C; --blue-soft:#0E2029;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1013; --card:#171A20; --ink:#F2F4F8; --dim:#9AA2B1; --line:#252A33;
+  --accent-soft:#2A1C10; --go-soft:#10241C; --blue-soft:#0E2029;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* .btn{display:block} などが [hidden] に勝ってしまうので、ここで押し切る */
+[hidden]{display:none !important}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--ui);
+  font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  overscroll-behavior-y:none;
+}
+.wrap{max-width:560px;margin:0 auto;padding:12px 12px 90px}
+
+/* ---- ヘッダー ---- */
+header{display:flex;align-items:baseline;gap:10px;padding:8px 4px 14px}
+header h1{margin:0;font-size:20px;font-weight:900;letter-spacing:.02em}
+header .sub{font-size:12px;color:var(--dim);font-weight:700}
+header .streak{margin-left:auto;font-size:12px;font-weight:800;color:var(--dim)}
+header .streak b{color:var(--accent);font-size:15px}
+
+/* ---- タブ ---- */
+.tabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:4px;margin-bottom:14px}
+.tabs button{flex:1;border:0;background:transparent;color:var(--dim);
+  font-family:var(--ui);font-size:13px;font-weight:800;padding:9px 4px;
+  border-radius:10px;cursor:pointer}
+.tabs button[data-on="1"]{background:var(--ink);color:var(--card)}
+
+.panel{display:none}
+.panel[data-on="1"]{display:block}
+
+/* ---- カード ---- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;
+  padding:16px;margin-bottom:12px}
+.card h2{margin:0 0 10px;font-size:12px;font-weight:900;letter-spacing:.08em;
+  color:var(--dim);text-transform:uppercase}
+
+/* ---- ステージ（ドリル本体） ---- */
+.stage{background:var(--card);border:1px solid var(--line);border-radius:22px;
+  padding:22px 18px;min-height:280px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;margin-bottom:12px;
+  position:relative;overflow:hidden}
+.stage .tag{font-size:11px;font-weight:900;letter-spacing:.1em;color:var(--dim);
+  text-transform:uppercase;margin-bottom:14px;min-height:16px}
+.stage .prompt{font-size:26px;font-weight:800;line-height:1.45;margin:0 0 18px;
+  word-break:break-word}
+.stage .answer{font-size:30px;font-weight:900;line-height:1.35;color:var(--go);
+  margin:0;min-height:42px;word-break:break-word}
+.stage .answer[data-hidden="1"]{color:transparent;background:var(--line);
+  border-radius:10px;min-width:60%}
+.stage .hint{font-size:12px;color:var(--dim);font-weight:700;margin-top:16px;min-height:18px}
+
+/* カウントダウンの輪 */
+.ring{width:84px;height:84px;margin:4px 0 14px;position:relative}
+.ring svg{transform:rotate(-90deg)}
+.ring .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:30px;font-weight:900;font-variant-numeric:tabular-nums}
+.ring circle{fill:none;stroke-width:7;stroke-linecap:round}
+.ring .bg{stroke:var(--line)}
+.ring .fg{stroke:var(--accent);transition:stroke-dashoffset .1s linear}
+
+.bar{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:12px}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s ease}
+
+/* ---- ボタン ---- */
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:15px 12px;
+  font-family:var(--ui);font-size:16px;font-weight:900;cursor:pointer;margin-bottom:10px}
+.btn.go{background:var(--accent);color:#fff}
+.btn.sub{background:var(--card);color:var(--ink);border:1px solid var(--line);font-size:14px}
+.btn.danger{background:transparent;color:#D4175B;border:1px solid var(--line);font-size:13px;font-weight:800}
+.btn:active{transform:scale(.99)}
+.row2{display:flex;gap:10px}
+.row2 .btn{margin-bottom:10px}
+
+/* ---- 設定行 ---- */
+.set{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.set:last-child{border-bottom:0}
+.set label{flex:1;font-size:14px;font-weight:700}
+.set .note{display:block;font-size:11.5px;color:var(--dim);font-weight:600;margin-top:2px;line-height:1.5}
+.set select,.set input[type=number]{font-family:var(--ui);font-size:14px;font-weight:700;
+  padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);
+  color:var(--ink);max-width:180px}
+.seg{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--dim);font-family:var(--ui);
+  font-size:13px;font-weight:800;padding:6px 12px;border-radius:8px;cursor:pointer}
+.seg button[data-on="1"]{background:var(--ink);color:var(--card)}
+.sw{width:50px;height:30px;border-radius:15px;background:var(--line);border:0;
+  position:relative;cursor:pointer;flex:0 0 auto;transition:background .18s}
+.sw i{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .18s}
+.sw[data-on="1"]{background:var(--go)}
+.sw[data-on="1"] i{left:23px}
+
+/* ---- 型の一覧 ---- */
+.grp{margin-bottom:16px}
+.grp h3{margin:0 0 8px;font-size:12px;font-weight:900;letter-spacing:.06em;color:var(--dim)}
+.item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item .txt{flex:1;min-width:0}
+.item .jp{font-size:13px;color:var(--dim);font-weight:700;line-height:1.5}
+.item .en{font-size:16px;font-weight:800;line-height:1.45;margin-top:1px;word-break:break-word}
+.item .x{border:0;background:transparent;color:var(--dim);font-size:18px;
+  cursor:pointer;padding:2px 6px;line-height:1;flex:0 0 auto}
+.item .play{border:0;background:var(--blue-soft);color:var(--blue);border-radius:9px;
+  font-size:12px;font-weight:900;padding:6px 9px;cursor:pointer;flex:0 0 auto}
+.addrow{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.addrow input{font-family:var(--ui);font-size:15px;padding:11px 12px;border:1px solid var(--line);
+  border-radius:11px;background:var(--bg);color:var(--ink);width:100%}
+
+.msg{font-size:12.5px;color:var(--dim);font-weight:700;line-height:1.65;margin:0}
+.msg b{color:var(--ink)}
+.warn{background:var(--accent-soft);border:1px solid var(--line);border-radius:12px;
+  padding:11px 12px;font-size:12.5px;font-weight:700;line-height:1.6;margin-bottom:12px}
+
+.done{background:var(--go-soft);color:var(--go);border-radius:14px;padding:13px;
+  text-align:center;font-weight:900;font-size:15px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>2秒ドリル</h1>
+  <span class="sub">5分・毎日</span>
+  <span class="streak" id="streak"></span>
+</header>
+
+<div class="tabs" id="tabs">
+  <button type="button" data-tab="drill" data-on="1">ドリル</button>
+  <button type="button" data-tab="list">型</button>
+  <button type="button" data-tab="set">設定</button>
+</div>
+
+<!-- ============ ドリル ============ -->
+<section class="panel" data-panel="drill" data-on="1">
+  <div id="todayDone" class="done" hidden>今日はもう終わっています</div>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="stage" id="stage">
+    <div class="tag" id="sTag"></div>
+    <div class="ring" id="ring" hidden>
+      <svg width="84" height="84" viewBox="0 0 84 84">
+        <circle class="bg" cx="42" cy="42" r="37"></circle>
+        <circle class="fg" id="ringFg" cx="42" cy="42" r="37"></circle>
+      </svg>
+      <div class="num" id="ringNum">3</div>
+    </div>
+    <p class="prompt" id="sPrompt">はじめる前に、声を出せる場所にいるか確かめてください</p>
+    <p class="answer" id="sAnswer"></p>
+    <div class="hint" id="sHint"></div>
+  </div>
+
+  <button class="btn go" id="btnStart">はじめる</button>
+  <div class="row2">
+    <button class="btn sub" id="btnDeck" style="flex:1">デッキ：20の型</button>
+    <button class="btn sub" id="btnStop" style="flex:1" hidden>やめる</button>
+  </div>
+
+  <div class="card">
+    <h2>やり方</h2>
+    <p class="msg">
+      日本語が聞こえたら、<b>無音の間に声に出して言う</b>。<br>
+      そのあと流れる英語と重なれば成功。<br>
+      <b>言えなくても止めない。</b>止めると「考える」練習になってしまう。<br><br>
+      目標は流暢さではなく、<b>出だしの速さ</b>。会話の返しは普通0.2秒で、考えてから言う設計では間に合わない。
+    </p>
+  </div>
+</section>
+
+<!-- ============ 型 ============ -->
+<section class="panel" data-panel="list">
+  <div class="card">
+    <h2>デッキ</h2>
+    <div class="seg" id="listDeck" style="margin-bottom:4px"></div>
+  </div>
+  <div class="card" id="listBox"></div>
+  <div class="card">
+    <h2>足す</h2>
+    <div class="addrow">
+      <input id="newTag" placeholder="場面のまとまり（例：空港）">
+      <input id="newJp" placeholder="読み上げる側（例：荷物はこれだけ、と言う）">
+      <input id="newEn" placeholder="答え（例：Just this one.）">
+      <button class="btn go" id="btnAdd" style="margin:0">足す</button>
+    </div>
+    <p class="msg" style="margin-top:12px">
+      足すときも、<b>まず短くできないか考えてください</b>。2〜4語が目安です。<br>
+      短い型は、言っている間に考える時間が生まれます。長い型は言うだけで手一杯になり、次が出てきません。
+    </p>
+  </div>
+</section>
+
+<!-- ============ 設定 ============ -->
+<section class="panel" data-panel="set">
+  <div class="card">
+    <h2>間</h2>
+    <div class="set">
+      <label>答えるまでの無音
+        <span class="note">短いほど本番に近い。慣れたら2秒へ</span>
+      </label>
+      <div class="seg" id="segGap">
+        <button type="button" data-v="2">2秒</button>
+        <button type="button" data-v="3">3秒</button>
+        <button type="button" data-v="4">4秒</button>
+      </div>
+    </div>
+    <div class="set">
+      <label>答えのあとの間
+        <span class="note">次の型に移るまで</span>
+      </label>
+      <div class="seg" id="segAfter">
+        <button type="button" data-v="0.6">短い</button>
+        <button type="button" data-v="1">ふつう</button>
+        <button type="button" data-v="1.6">長い</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>声</h2>
+    <div class="set">
+      <label>日本語の声</label>
+      <select id="voiceJa"></select>
+    </div>
+    <div class="set">
+      <label>英語の声</label>
+      <select id="voiceEn"></select>
+    </div>
+    <div class="set">
+      <label>読む速さ
+        <span class="note">英語だけに効きます</span>
+      </label>
+      <div class="seg" id="segRate">
+        <button type="button" data-v="0.8">ゆっくり</button>
+        <button type="button" data-v="0.95">ふつう</button>
+        <button type="button" data-v="1.1">速い</button>
+      </div>
+    </div>
+    <button class="btn sub" id="btnTest" style="margin-top:10px">声を試す</button>
+  </div>
+
+  <div class="card">
+    <h2>画面</h2>
+    <div class="set">
+      <label>答えを先に出さない
+        <span class="note">オンのほうが練習になります。音だけで使うなら関係ありません</span>
+      </label>
+      <button class="sw" id="swHide" data-on="1"><i></i></button>
+    </div>
+    <div class="set">
+      <label>画面を消さない
+        <span class="note">歩きながら使うとき。端末が対応していれば効きます</span>
+      </label>
+      <button class="sw" id="swWake"><i></i></button>
+    </div>
+    <div class="set">
+      <label>見た目</label>
+      <div class="seg" id="segTheme">
+        <button type="button" data-v="auto">自動</button>
+        <button type="button" data-v="light">明</button>
+        <button type="button" data-v="dark">暗</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>控え</h2>
+    <button class="btn sub" id="btnExport">型を書き出す</button>
+    <button class="btn sub" id="btnImport">型を読み込む</button>
+    <button class="btn danger" id="btnReset">最初の20型に戻す</button>
+    <input type="file" id="fileIn" accept="application/json" hidden>
+  </div>
+
+  <div class="card">
+    <h2>この端末について</h2>
+    <p class="msg" id="envNote"></p>
+  </div>
+</section>
+
+</div>
+
+<script>
+"use strict";
+
+/* ===================== 既定の型 =====================
+   すべて2〜4語。短い型は、言っている間に考える時間が生まれる。
+   lang は読み上げ側の言語。崩れた入力のデッキだけ英語で問いかける。 */
+const DEFAULT_DECKS = [
+  { id:"types", name:"20の型", promptLang:"ja", items:[
+    {tag:"時間を買う",   jp:"聞き返す",                   en:"Sorry?"},
+    {tag:"時間を買う",   jp:"もう一度言ってほしい",       en:"Say that again?"},
+    {tag:"時間を買う",   jp:"考える時間がほしい",         en:"Let me think."},
+    {tag:"意味が取れない", jp:"何の話か分からない",       en:"About what?"},
+    {tag:"意味が取れない", jp:"犬のこと、と確かめる",     en:"The dog?"},
+    {tag:"意味が取れない", jp:"ちょっと待ってもらう",     en:"One second."},
+    {tag:"褒められた",   jp:"犬を褒められた。お礼",       en:"Thanks!"},
+    {tag:"褒められた",   jp:"可愛いねと言われて同意する", en:"Yeah, she is!"},
+    {tag:"褒められた",   jp:"犬の歳を言う",               en:"She's three."},
+    {tag:"相手に返す",   jp:"相手も飼ってる、と聞く",     en:"Do you have one?"},
+    {tag:"相手に返す",   jp:"どこから来たの、と聞く",     en:"Where are you from?"},
+    {tag:"相手に返す",   jp:"旅行で来てるの、と聞く",     en:"Here on holiday?"},
+    {tag:"道を聞かれた", jp:"分からない",                 en:"Sorry, not sure."},
+    {tag:"道を聞かれた", jp:"あっちです、と指をさす",     en:"That way."},
+    {tag:"道を聞かれた", jp:"この辺に住んでいない",       en:"I don't live here."},
+    {tag:"店",           jp:"見ているだけ",               en:"Just looking, thanks."},
+    {tag:"店",           jp:"これください",               en:"This one, please."},
+    {tag:"店",           jp:"袋はいらない",               en:"No bag, thanks."},
+    {tag:"出口",         jp:"話せてよかった、と別れる",   en:"Nice talking to you!"},
+    {tag:"出口",         jp:"よい旅を",                   en:"Enjoy your trip!"}
+  ]},
+  { id:"broken", name:"崩れた入力", promptLang:"en", items:[
+    {tag:"崩れた入力", jp:"How do you think?",      en:"Sorry — about what?"},
+    {tag:"崩れた入力", jp:"How is your dog called?", en:"She's Hana."},
+    {tag:"崩れた入力", jp:"From where are you?",     en:"Tokyo."},
+    {tag:"崩れた入力", jp:"You like dog?",           en:"Yeah! Do you have one?"}
+  ]}
+];
+
+/* ===================== 保存 ===================== */
+const K = {
+  decks:"s2.decks", gap:"s2.gap", after:"s2.after", rate:"s2.rate",
+  vja:"s2.vja", ven:"s2.ven", hide:"s2.hide", wake:"s2.wake",
+  theme:"s2.theme", deck:"s2.deck", log:"s2.log"
+};
+function ls(k, d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
+function lsPut(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+function lsJson(k, d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+let decks   = lsJson(K.decks, null) || JSON.parse(JSON.stringify(DEFAULT_DECKS));
+let gap     = +ls(K.gap, 3);
+let after   = +ls(K.after, 1);
+let rate    = +ls(K.rate, 0.95);
+let hideAns = ls(K.hide, "1") === "1";
+let wantWake= ls(K.wake, "0") === "1";
+let theme   = ls(K.theme, "auto");
+let deckIx  = +ls(K.deck, 0);
+let log     = lsJson(K.log, {});   /* {"2026-10-19": true} */
+
+function saveDecks(){ lsPut(K.decks, JSON.stringify(decks)); }
+
+/* ===================== 日付 ===================== */
+function today(){
+  const d = new Date();
+  const p = n => String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+}
+function addDays(iso, n){
+  const [y,m,d] = iso.split("-").map(Number);
+  const t = new Date(y, m-1, d+n);
+  const p = x => String(x).padStart(2,"0");
+  return t.getFullYear()+"-"+p(t.getMonth()+1)+"-"+p(t.getDate());
+}
+function streak(){
+  let n = 0, day = today();
+  if(!log[day]) day = addDays(day, -1);   /* 今日まだでも、昨日までの連続は見せる */
+  while(log[day]){ n++; day = addDays(day, -1); }
+  return n;
+}
+function renderStreak(){
+  const n = streak();
+  $("#streak").innerHTML = n > 0 ? ("れんぞく <b>"+n+"</b> 日") : "";
+  $("#todayDone").hidden = !log[today()];
+}
+
+/* ===================== テーマ ===================== */
+function applyTheme(){
+  if(theme === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+}
+
+/* ===================== 声 ===================== */
+const synth = window.speechSynthesis || null;
+let voices = [];
+
+function loadVoices(){
+  if(!synth) return;
+  voices = synth.getVoices() || [];
+  fillVoiceSelect("#voiceJa", "ja", K.vja);
+  fillVoiceSelect("#voiceEn", "en", K.ven);
+}
+function fillVoiceSelect(sel, pre, key){
+  const el = $(sel); if(!el) return;
+  const want = ls(key, "");
+  const list = voices.filter(v => (v.lang||"").toLowerCase().startsWith(pre));
+  el.innerHTML = "";
+  if(!list.length){
+    const o = document.createElement("option");
+    o.value = ""; o.textContent = "（この端末にありません）";
+    el.appendChild(o); return;
+  }
+  list.forEach(v => {
+    const o = document.createElement("option");
+    o.value = v.name; o.textContent = v.name + "（" + v.lang + "）";
+    if(v.name === want) o.selected = true;
+    el.appendChild(o);
+  });
+}
+function pickVoice(pre, key){
+  const want = ls(key, "");
+  let v = voices.find(x => x.name === want);
+  if(v) return v;
+  v = voices.find(x => (x.lang||"").toLowerCase().startsWith(pre));
+  return v || null;
+}
+
+/* 1回だけ喋る。終わったら resolve。失敗しても必ず resolve する。 */
+function say(text, lang){
+  return new Promise(resolve => {
+    if(!synth){ resolve(false); return; }
+    let done = false;
+    const fin = ok => { if(done) return; done = true; resolve(ok); };
+    try{
+      const u = new SpeechSynthesisUtterance(text);
+      const isJa = lang === "ja";
+      const v = pickVoice(isJa ? "ja" : "en", isJa ? K.vja : K.ven);
+      if(v) u.voice = v;
+      u.lang = isJa ? (v && v.lang) || "ja-JP" : (v && v.lang) || "en-US";
+      u.rate = isJa ? 1 : rate;
+      u.onend   = () => fin(true);
+      u.onerror = () => fin(false);
+      synth.speak(u);
+      /* 読み上げが黙って死ぬ端末があるので、長さから出した上限で必ず抜ける */
+      setTimeout(() => fin(false), 2500 + text.length * 120);
+    }catch(e){ fin(false); }
+  });
+}
+function shutUp(){ try{ if(synth) synth.cancel(); }catch(e){} }
+
+/* ===================== 画面を消さない ===================== */
+let wakeLock = null;
+async function wakeOn(){
+  if(!wantWake || !("wakeLock" in navigator)) return;
+  try{ wakeLock = await navigator.wakeLock.request("screen"); }catch(e){ wakeLock = null; }
+}
+function wakeOff(){ try{ if(wakeLock){ wakeLock.release(); wakeLock = null; } }catch(e){} }
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible" && running) wakeOn();
+});
+
+/* ===================== ドリル ===================== */
+let running = false;
+let stopped = false;
+let timer   = null;
+
+const RING_LEN = 2 * Math.PI * 37;
+$("#ringFg").style.strokeDasharray = RING_LEN;
+
+/* 待っている最中に「やめる」が押されたとき、タイマーを消すだけでは
+   待ちが解けずに固まる。いま待っている解決関数を控えておいて、直接呼ぶ。 */
+let unblock = null;
+function clearWait(){
+  clearTimeout(timer);
+  const r = unblock; unblock = null;
+  if(r) r();
+}
+function sleep(ms){
+  return new Promise(r => {
+    unblock = r;
+    timer = setTimeout(() => { unblock = null; r(); }, ms);
+  });
+}
+/* 無音の間。輪を減らしながら待つ。 */
+function gapWait(sec){
+  return new Promise(resolve => {
+    const ring = $("#ring"), num = $("#ringNum"), fg = $("#ringFg");
+    const fin = () => { unblock = null; ring.hidden = true; resolve(); };
+    unblock = fin;
+    ring.hidden = false;
+    const t0 = Date.now(), total = sec * 1000;
+    const tick = () => {
+      if(stopped){ fin(); return; }
+      const el = Date.now() - t0;
+      const left = Math.max(0, total - el);
+      num.textContent = Math.ceil(left / 1000);
+      fg.style.strokeDashoffset = RING_LEN * (1 - left / total);
+      if(left <= 0){ fin(); return; }
+      timer = setTimeout(tick, 80);
+    };
+    tick();
+  });
+}
+
+function setStage(o){
+  $("#sTag").textContent    = o.tag || "";
+  $("#sPrompt").textContent = o.prompt || "";
+  const a = $("#sAnswer");
+  a.textContent = o.answer || "";
+  if(o.answer && o.masked){ a.dataset.hidden = "1"; a.textContent = "　"; }
+  else delete a.dataset.hidden;
+  $("#sHint").textContent = o.hint || "";
+}
+
+async function run(){
+  const deck = decks[deckIx];
+  if(!deck || !deck.items.length){ return; }
+  running = true; stopped = false;
+  $("#btnStart").hidden = true;
+  $("#btnStop").hidden  = false;
+  $("#btnDeck").disabled = true;
+  await wakeOn();
+
+  /* iOS は利用者の操作から1回喋っておかないと、以降が無音になる */
+  await say(" ", "en");
+
+  const n = deck.items.length;
+  for(let i = 0; i < n; i++){
+    if(stopped) break;
+    const it = deck.items[i];
+    $("#bar").style.width = Math.round(i / n * 100) + "%";
+
+    setStage({ tag: (i+1) + " / " + n + "　" + (it.tag || ""),
+               prompt: it.jp, answer: "", hint: "" });
+    await say(it.jp, deck.promptLang === "en" ? "en" : "ja");
+    if(stopped) break;
+
+    setStage({ tag: (i+1) + " / " + n + "　" + (it.tag || ""),
+               prompt: it.jp, answer: it.en, masked: hideAns,
+               hint: "いま声に出す" });
+    await gapWait(gap);
+    if(stopped) break;
+
+    setStage({ tag: (i+1) + " / " + n + "　" + (it.tag || ""),
+               prompt: it.jp, answer: it.en, masked: false, hint: "" });
+    await say(it.en, "en");
+    if(stopped) break;
+
+    await sleep(after * 1000);
+  }
+
+  $("#bar").style.width = stopped ? "0%" : "100%";
+  running = false;
+  wakeOff();
+  $("#btnStart").hidden = false;
+  $("#btnStop").hidden  = true;
+  $("#btnDeck").disabled = false;
+  $("#ring").hidden = true;
+
+  if(!stopped){
+    log[today()] = true;
+    lsPut(K.log, JSON.stringify(log));
+    renderStreak();
+    setStage({ tag:"", prompt:"おしまい", answer:"",
+               hint: deckIx === 0 ? "つづけて「崩れた入力」もどうぞ" : "お疲れさまでした" });
+    $("#btnStart").textContent = "もう一度";
+  }else{
+    setStage({ tag:"", prompt:"とちゅうで止めました", answer:"", hint:"" });
+    $("#btnStart").textContent = "はじめる";
+  }
+}
+
+function stopRun(){
+  stopped = true;
+  shutUp();
+  clearWait();
+}
+
+/* ===================== 画面を描く ===================== */
+function renderDeckBtn(){
+  $("#btnDeck").textContent = "デッキ：" + decks[deckIx].name;
+}
+function renderList(){
+  const seg = $("#listDeck");
+  seg.innerHTML = "";
+  decks.forEach((d, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = d.name + "（" + d.items.length + "）";
+    if(i === deckIx) b.dataset.on = "1";
+    b.onclick = () => { deckIx = i; lsPut(K.deck, i); renderDeckBtn(); renderList(); };
+    seg.appendChild(b);
+  });
+
+  const box = $("#listBox");
+  box.innerHTML = "";
+  const deck = decks[deckIx];
+  const groups = [];
+  deck.items.forEach((it, i) => {
+    const t = it.tag || "その他";
+    let g = groups.find(x => x.tag === t);
+    if(!g){ g = { tag:t, rows:[] }; groups.push(g); }
+    g.rows.push({ it, i });
+  });
+
+  groups.forEach(g => {
+    const wrap = document.createElement("div");
+    wrap.className = "grp";
+    const h = document.createElement("h3");
+    h.textContent = g.tag;
+    wrap.appendChild(h);
+    g.rows.forEach(({ it, i }) => {
+      const row = document.createElement("div");
+      row.className = "item";
+
+      const play = document.createElement("button");
+      play.className = "play"; play.textContent = "▶";
+      play.onclick = async () => {
+        shutUp();
+        await say(it.jp, deck.promptLang === "en" ? "en" : "ja");
+        await sleep(300);
+        await say(it.en, "en");
+      };
+
+      const txt = document.createElement("div");
+      txt.className = "txt";
+      const jp = document.createElement("div");
+      jp.className = "jp"; jp.textContent = it.jp;
+      const en = document.createElement("div");
+      en.className = "en"; en.textContent = it.en;
+      txt.appendChild(jp); txt.appendChild(en);
+
+      const x = document.createElement("button");
+      x.className = "x"; x.textContent = "×"; x.title = "消す";
+      x.onclick = () => {
+        if(!confirm("この型を消しますか\n\n" + it.jp + "\n" + it.en)) return;
+        deck.items.splice(i, 1); saveDecks(); renderList(); renderDeckBtn();
+      };
+
+      row.appendChild(play); row.appendChild(txt); row.appendChild(x);
+      wrap.appendChild(row);
+    });
+    box.appendChild(wrap);
+  });
+
+  if(!deck.items.length){
+    const p = document.createElement("p");
+    p.className = "msg"; p.textContent = "型がありません。下から足してください。";
+    box.appendChild(p);
+  }
+}
+
+function renderSeg(sel, val, set){
+  $$(sel + " button").forEach(b => {
+    if(String(b.dataset.v) === String(val)) b.dataset.on = "1"; else delete b.dataset.on;
+    b.onclick = () => { set(b.dataset.v); renderSeg(sel, b.dataset.v, set); };
+  });
+}
+function renderSw(sel, on, set){
+  const b = $(sel);
+  if(on) b.dataset.on = "1"; else delete b.dataset.on;
+  b.onclick = () => {
+    const next = !(b.dataset.on === "1");
+    set(next);
+    renderSw(sel, next, set);
+  };
+}
+
+/* ===================== つなぐ ===================== */
+$$("#tabs button").forEach(b => {
+  b.onclick = () => {
+    $$("#tabs button").forEach(x => delete x.dataset.on);
+    b.dataset.on = "1";
+    $$(".panel").forEach(p => {
+      if(p.dataset.panel === b.dataset.tab) p.dataset.on = "1";
+      else delete p.dataset.on;
+    });
+    if(b.dataset.tab === "list") renderList();
+  };
+});
+
+$("#btnStart").onclick = () => { if(!running) run(); };
+$("#btnStop").onclick  = stopRun;
+$("#btnDeck").onclick  = () => {
+  deckIx = (deckIx + 1) % decks.length;
+  lsPut(K.deck, deckIx);
+  renderDeckBtn(); renderList();
+};
+
+$("#btnAdd").onclick = () => {
+  const tag = $("#newTag").value.trim() || "その他";
+  const jp  = $("#newJp").value.trim();
+  const en  = $("#newEn").value.trim();
+  if(!jp || !en){ alert("読み上げる側と答えの両方を入れてください"); return; }
+  decks[deckIx].items.push({ tag, jp, en });
+  saveDecks();
+  $("#newJp").value = ""; $("#newEn").value = "";
+  renderList(); renderDeckBtn();
+};
+
+$("#btnTest").onclick = async () => {
+  shutUp();
+  await say("犬を褒められた", "ja");
+  await sleep(300);
+  await say("Yeah, she is!", "en");
+};
+
+$("#btnExport").onclick = () => {
+  const blob = new Blob([JSON.stringify(decks, null, 1)], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "2byou-drill-" + today() + ".json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$("#btnImport").onclick = () => $("#fileIn").click();
+$("#fileIn").onchange = e => {
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      if(!Array.isArray(d) || !d.length || !Array.isArray(d[0].items)) throw 0;
+      decks = d; deckIx = 0; lsPut(K.deck, 0); saveDecks();
+      renderDeckBtn(); renderList();
+      alert("読み込みました");
+    }catch(err){ alert("この控えは読み込めませんでした"); }
+  };
+  r.readAsText(f);
+  e.target.value = "";
+};
+$("#btnReset").onclick = () => {
+  if(!confirm("足した型は消えて、最初の20型に戻ります。よろしいですか")) return;
+  decks = JSON.parse(JSON.stringify(DEFAULT_DECKS));
+  deckIx = 0; lsPut(K.deck, 0); saveDecks();
+  renderDeckBtn(); renderList();
+};
+
+/* ===================== 立ち上げ ===================== */
+applyTheme();
+renderDeckBtn();
+renderStreak();
+renderSeg("#segGap",   gap,   v => { gap   = +v; lsPut(K.gap, v); });
+renderSeg("#segAfter", after, v => { after = +v; lsPut(K.after, v); });
+renderSeg("#segRate",  rate,  v => { rate  = +v; lsPut(K.rate, v); });
+renderSeg("#segTheme", theme, v => { theme = v;  lsPut(K.theme, v); applyTheme(); });
+renderSw("#swHide", hideAns,  v => { hideAns  = v; lsPut(K.hide, v ? "1" : "0"); });
+renderSw("#swWake", wantWake, v => { wantWake = v; lsPut(K.wake, v ? "1" : "0"); if(v) wakeOn(); else wakeOff(); });
+
+$("#voiceJa").onchange = e => lsPut(K.vja, e.target.value);
+$("#voiceEn").onchange = e => lsPut(K.ven, e.target.value);
+
+if(synth){
+  loadVoices();
+  if(typeof synth.addEventListener === "function") synth.addEventListener("voiceschanged", loadVoices);
+  else synth.onvoiceschanged = loadVoices;
+  setTimeout(loadVoices, 500);
+  setTimeout(loadVoices, 1500);
+}
+
+(function envNote(){
+  const el = $("#envNote");
+  const bits = [];
+  if(!synth){
+    bits.push("<b>この端末では読み上げが使えません。</b>画面の文字だけで進みます。設定の「答えを先に出さない」をオンのままにして、文字が出る前に声に出してください。");
+  }else{
+    bits.push("読み上げは端末の機能を使っています。<b>通信もアカウントも要りません。</b>");
+    bits.push("日本語か英語の声が無いときは、端末の設定から声を追加すると出ます。");
+  }
+  bits.push("iPhone は画面を消すと読み上げが止まります。歩きながら使うときは「画面を消さない」をオンにしてください。");
+  bits.push("型と記録はこの端末の中だけに残ります。機種を変えるときは「型を書き出す」で控えを取ってください。");
+  el.innerHTML = bits.join("<br><br>");
+})();
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
