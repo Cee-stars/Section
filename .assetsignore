@@ -1,0 +1,4 @@
+# 配らなくていいもの。設定や説明まで公開する必要はない
+wrangler.toml
+.assetsignore
+README.md

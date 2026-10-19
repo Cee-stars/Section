@@ -1,0 +1,12 @@
+# Cloudflare Workers の設定。
+# このアプリは静的ファイルだけでできているので、worker.js も D1 も要らない。
+# main を書かないと「静的ファイルを配るだけの Worker」になる。
+
+name = "section"
+compatibility_date = "2025-06-01"
+
+[assets]
+directory = "./"
+# どの道をたどっても index.html を返す。
+# ホーム画面から開いたときや、履歴を戻ったときに 404 にならないようにする。
+not_found_handling = "single-page-application"
