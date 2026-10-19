@@ -290,6 +290,25 @@ header .streak b{color:var(--accent);font-size:15px}
   </div>
 
   <div class="card">
+    <h2>Daily Reps とつなぐ</h2>
+    <p class="msg" style="margin:0 0 12px">
+      つなぐと、ドリルを終えたときに Daily Reps の「2秒ドリル」が<b>自動でチェックされます</b>。
+      連続日数も Daily Reps の記録から数えるようになります。<br>
+      URL と鍵は、Daily Reps の設定に入れたものと同じです。
+    </p>
+    <div class="addrow">
+      <input id="cfUrl" placeholder="https://〈名前〉.workers.dev/api/state"
+             autocomplete="off" autocapitalize="off" spellcheck="false">
+      <input id="cfKey" type="password" placeholder="鍵（Daily Reps と同じもの）"
+             autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="btn go" id="btnCfSave" style="margin:0">つなぐ</button>
+      <button class="btn sub" id="btnCfTest" style="margin:0">つながるか試す</button>
+      <button class="btn danger" id="btnCfOff" style="margin:0">つなぐのをやめる</button>
+    </div>
+    <p class="msg" id="cfState" style="margin-top:12px"></p>
+  </div>
+
+  <div class="card">
     <h2>控え</h2>
     <button class="btn sub" id="btnExport">型を書き出す</button>
     <button class="btn sub" id="btnImport">型を読み込む</button>
@@ -346,7 +365,8 @@ const DEFAULT_DECKS = [
 const K = {
   decks:"s2.decks", gap:"s2.gap", after:"s2.after", rate:"s2.rate",
   vja:"s2.vja", ven:"s2.ven", hide:"s2.hide", wake:"s2.wake",
-  theme:"s2.theme", deck:"s2.deck", log:"s2.log"
+  theme:"s2.theme", deck:"s2.deck", log:"s2.log",
+  cfurl:"s2.cfurl", cfkey:"s2.cfkey"
 };
 function ls(k, d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
 function lsPut(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
@@ -366,6 +386,99 @@ let deckIx  = +ls(K.deck, 0);
 let log     = lsJson(K.log, {});   /* {"2026-10-19": true} */
 
 function saveDecks(){ lsPut(K.decks, JSON.stringify(decks)); }
+
+/* ===================== Daily Reps とつなぐ =====================
+   Daily Reps の置き場（Cloudflare の /api/state）に、
+   その日の「2秒ドリル」のチェックだけを書き足す。
+   記録の形は Daily Reps のものをそのまま読み書きし、
+   こちらが分からないところには一切触らない。 */
+const TASK_ID = "resp2s";
+
+function cfOn(){ return !!(ls(K.cfurl,"") && ls(K.cfkey,"")); }
+
+/* at を渡すと、保存した値ではなくその場の値で試せる（つながるか試す用） */
+async function api(method, body, at){
+  const url = (at && at.url) || ls(K.cfurl,"");
+  const key = (at && at.key) || ls(K.cfkey,"");
+  if(!url || !key) throw { code:"off", message:"つないでいません" };
+  const headers = { "x-reps-key": key };
+  if(body) headers["Content-Type"] = "application/json";
+  let res;
+  try{
+    res = await fetch(url, { method, headers, body, cache:"no-store" });
+  }catch(e){
+    throw { code:"net", message:"置き場に届きませんでした" };
+  }
+  let j = null; try{ j = await res.json(); }catch(e){}
+  if(res.ok) return j || {};
+  if(res.status === 401) throw { code:"auth", message:"鍵が違います" };
+  if(res.status === 409) throw { code:"conflict", message:"ほかの端末が先に書きました", j };
+  if(res.status === 404) throw { code:"net", message:"その場所に /api/state がありません" };
+  throw { code:"net", message:(j && j.error) || ("HTTP " + res.status) };
+}
+
+/* 受け取った記録に、今日のチェックだけを書き足して返す。
+   tasks など、こちらに関係のないところはそのまま通す。 */
+function patchBody(raw, day){
+  let st = null;
+  if(raw){ try{ st = JSON.parse(raw); }catch(e){ st = null; } }
+  if(!st || typeof st !== "object" || Array.isArray(st)) st = { v:7 };
+  if(!st.log  || typeof st.log  !== "object") st.log  = {};
+  if(!st.meta || typeof st.meta !== "object") st.meta = {};
+  if(!st.meta.marks || typeof st.meta.marks !== "object") st.meta.marks = {};
+
+  const ids = new Set(Array.isArray(st.log[day]) ? st.log[day] : []);
+  ids.add(TASK_ID);
+  st.log[day] = [...ids].sort();
+
+  const m = st.meta.marks[day] || (st.meta.marks[day] = {});
+  m[TASK_ID] = Date.now();
+
+  return JSON.stringify(st);
+}
+
+/* 置き場の記録から、2秒ドリルをやった日だけを取り出す */
+function logFromBody(raw){
+  const out = {};
+  try{
+    const st = JSON.parse(raw || "null");
+    const lg = st && st.log;
+    if(lg) for(const d in lg) if(Array.isArray(lg[d]) && lg[d].includes(TASK_ID)) out[d] = true;
+  }catch(e){}
+  return out;
+}
+
+/* 終わったときに呼ぶ。版が競ったら読み直してやり直す。 */
+async function pushDone(){
+  const day = today();
+  for(let i = 0; i < 3; i++){
+    let got;
+    try{ got = await api("GET"); }
+    catch(e){ return { ok:false, why:e.message || "つながりません" }; }
+    const next = patchBody(got.body, day);
+    try{
+      await api("PUT", JSON.stringify({ body: next, rev: got.rev | 0 }));
+      log = logFromBody(next);
+      lsPut(K.log, JSON.stringify(log));
+      return { ok:true };
+    }catch(e){
+      if(e.code === "conflict") continue;      /* 読み直してもう一度 */
+      return { ok:false, why:e.message || "書けませんでした" };
+    }
+  }
+  return { ok:false, why:"何度か試しましたが書けませんでした" };
+}
+
+/* 開いたときに、置き場の記録で連続日数を合わせる */
+async function pullLog(){
+  if(!cfOn()) return;
+  try{
+    const got = await api("GET");
+    log = logFromBody(got.body);
+    lsPut(K.log, JSON.stringify(log));
+    renderStreak();
+  }catch(e){}
+}
 
 /* ===================== 日付 ===================== */
 function today(){
@@ -568,9 +681,17 @@ async function run(){
     log[today()] = true;
     lsPut(K.log, JSON.stringify(log));
     renderStreak();
-    setStage({ tag:"", prompt:"おしまい", answer:"",
-               hint: deckIx === 0 ? "つづけて「崩れた入力」もどうぞ" : "お疲れさまでした" });
+    const tail = deckIx === 0 ? "つづけて「崩れた入力」もどうぞ" : "お疲れさまでした";
+    setStage({ tag:"", prompt:"おしまい", answer:"", hint: tail });
     $("#btnStart").textContent = "もう一度";
+    if(cfOn()){
+      setStage({ tag:"", prompt:"おしまい", answer:"", hint:"Daily Reps に書いています…" });
+      pushDone().then(r => {
+        setStage({ tag:"", prompt:"おしまい", answer:"",
+                   hint: r.ok ? "Daily Reps にチェックを入れました" : ("書けませんでした：" + r.why) });
+        renderStreak();
+      });
+    }
   }else{
     setStage({ tag:"", prompt:"とちゅうで止めました", answer:"", hint:"" });
     $("#btnStart").textContent = "はじめる";
@@ -754,6 +875,49 @@ renderSeg("#segTheme", theme, v => { theme = v;  lsPut(K.theme, v); applyTheme()
 renderSw("#swHide", hideAns,  v => { hideAns  = v; lsPut(K.hide, v ? "1" : "0"); });
 renderSw("#swWake", wantWake, v => { wantWake = v; lsPut(K.wake, v ? "1" : "0"); if(v) wakeOn(); else wakeOff(); });
 
+function renderCf(){
+  const on = cfOn();
+  $("#cfUrl").value = ls(K.cfurl, "");
+  $("#cfKey").value = ls(K.cfkey, "");
+  $("#cfState").innerHTML = on
+    ? "いま <b>つないでいます</b>。ドリルを終えると Daily Reps の「2秒ドリル」にチェックが入ります。"
+    : "まだつないでいません。連続日数はこの端末の中だけで数えます。";
+}
+$("#btnCfSave").onclick = async () => {
+  const u = $("#cfUrl").value.trim(), k = $("#cfKey").value.trim();
+  if(!u || !k){ alert("URL と鍵の両方を入れてください"); return; }
+  lsPut(K.cfurl, u); lsPut(K.cfkey, k);
+  renderCf();
+  $("#cfState").textContent = "試しています…";
+  try{
+    const got = await api("GET");
+    log = logFromBody(got.body);
+    lsPut(K.log, JSON.stringify(log));
+    renderStreak();
+    $("#cfState").innerHTML = "<b>つながりました。</b>Daily Reps の記録から、2秒ドリルをやった日を "
+      + Object.keys(log).length + " 日ぶん受け取りました。";
+  }catch(e){
+    $("#cfState").textContent = "つながりませんでした：" + (e.message || "理由不明");
+  }
+};
+$("#btnCfTest").onclick = async () => {
+  const at = { url: $("#cfUrl").value.trim(), key: $("#cfKey").value.trim() };
+  if(!at.url || !at.key){ $("#cfState").textContent = "URL と鍵の両方を入れてください"; return; }
+  $("#cfState").textContent = "試しています…";
+  try{
+    const got = await api("GET", null, at);
+    $("#cfState").innerHTML = "<b>届きました。</b>いまの版は " + (got.rev|0) + "、"
+      + (got.body ? "記録が入っています。" : "まだ記録が空です。");
+  }catch(e){
+    $("#cfState").textContent = "届きませんでした：" + (e.message || "理由不明");
+  }
+};
+$("#btnCfOff").onclick = () => {
+  if(!confirm("つなぐのをやめますか。\n連続日数は、この端末の中だけで数えるようになります。")) return;
+  lsPut(K.cfurl, ""); lsPut(K.cfkey, "");
+  renderCf();
+};
+
 $("#voiceJa").onchange = e => lsPut(K.vja, e.target.value);
 $("#voiceEn").onchange = e => lsPut(K.ven, e.target.value);
 
@@ -765,6 +929,9 @@ if(synth){
   setTimeout(loadVoices, 1500);
 }
 
+renderCf();
+pullLog();
+
 (function envNote(){
   const el = $("#envNote");
   const bits = [];
@@ -775,7 +942,8 @@ if(synth){
     bits.push("日本語か英語の声が無いときは、端末の設定から声を追加すると出ます。");
   }
   bits.push("iPhone は画面を消すと読み上げが止まります。歩きながら使うときは「画面を消さない」をオンにしてください。");
-  bits.push("型と記録はこの端末の中だけに残ります。機種を変えるときは「型を書き出す」で控えを取ってください。");
+  bits.push("<b>型はこの端末の中だけに残ります</b>（同期しません）。機種を変えるときは「型を書き出す」で控えを取ってください。");
+  bits.push("Daily Reps とつないだときは、<b>やった日の記録だけ</b>が置き場とやりとりされます。型は送りません。");
   el.innerHTML = bits.join("<br><br>");
 })();
 
