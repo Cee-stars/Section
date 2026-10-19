@@ -301,6 +301,7 @@ header .streak b{color:var(--accent);font-size:15px}
              autocomplete="off" autocapitalize="off" spellcheck="false">
       <input id="cfKey" type="password" placeholder="鍵（Daily Reps と同じもの）"
              autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="btn sub" id="btnCfGuess" style="margin:0">URL を自動で入れる</button>
       <button class="btn go" id="btnCfSave" style="margin:0">つなぐ</button>
       <button class="btn sub" id="btnCfTest" style="margin:0">つながるか試す</button>
       <button class="btn danger" id="btnCfOff" style="margin:0">つなぐのをやめる</button>
@@ -875,14 +876,33 @@ renderSeg("#segTheme", theme, v => { theme = v;  lsPut(K.theme, v); applyTheme()
 renderSw("#swHide", hideAns,  v => { hideAns  = v; lsPut(K.hide, v ? "1" : "0"); });
 renderSw("#swWake", wantWake, v => { wantWake = v; lsPut(K.wake, v ? "1" : "0"); if(v) wakeOn(); else wakeOff(); });
 
+/* このアプリの住所から、Daily Reps の置き場の住所を組み立てる。
+   同じアカウントの Worker なので、いちばん前の名前だけが違う。
+   例を文章で見せると、その例をそのまま貼ってしまう事故が起きるので、
+   手で組み立てさせない。 */
+function guessUrl(){
+  const h = location.hostname;
+  if(!/\.workers\.dev$/.test(h)) return "";
+  const parts = h.split(".");
+  parts[0] = "daily-repsssss";
+  return "https://" + parts.join(".") + "/api/state";
+}
 function renderCf(){
   const on = cfOn();
-  $("#cfUrl").value = ls(K.cfurl, "");
+  const g = guessUrl();
+  $("#btnCfGuess").hidden = !g;
+  $("#cfUrl").value = ls(K.cfurl, "") || g;
   $("#cfKey").value = ls(K.cfkey, "");
   $("#cfState").innerHTML = on
     ? "いま <b>つないでいます</b>。ドリルを終えると Daily Reps の「2秒ドリル」にチェックが入ります。"
     : "まだつないでいません。連続日数はこの端末の中だけで数えます。";
 }
+$("#btnCfGuess").onclick = () => {
+  const g = guessUrl();
+  if(!g){ $("#cfState").textContent = "この端末からは組み立てられません。手で入れてください。"; return; }
+  $("#cfUrl").value = g;
+  $("#cfState").innerHTML = "入れました。<b>鍵を入れて「つなぐ」</b>を押してください。";
+};
 $("#btnCfSave").onclick = async () => {
   const u = $("#cfUrl").value.trim(), k = $("#cfKey").value.trim();
   if(!u || !k){ alert("URL と鍵の両方を入れてください"); return; }
