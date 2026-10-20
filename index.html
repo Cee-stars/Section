@@ -354,6 +354,35 @@ const DEFAULT_DECKS = [
     {tag:"出口",         jp:"話せてよかった、と別れる",   en:"Nice talking to you!"},
     {tag:"出口",         jp:"よい旅を",                   en:"Enjoy your trip!"}
   ]},
+  { id:"order", name:"会話：注文する", promptLang:"en", items:[
+    /* 店員のセリフを読み上げ、無音のあいだに客として返す。
+       前半は台本どおり。後半は同じ場面で店員の言い方だけ変えてある。
+       覚えた通りに言う店員はいないので、そこまでやって初めて本番で動く。 */
+    {tag:"そのまま", jp:"Hello, may I help you?",
+      en:"Can I get a 6-piece chicken wing and French fries?"},
+    {tag:"そのまま", jp:"You said how many pieces?", en:"Six."},
+    {tag:"そのまま", jp:"Six? Okay. Anything else?", en:"How much is that?"},
+    {tag:"そのまま", jp:"It will be twelve fifty.", en:"Okay, that will be all."},
+    {tag:"そのまま", jp:"It will take about ten minutes.", en:"What time do you close?"},
+    {tag:"そのまま", jp:"We close at eleven.", en:"Eleven, or eleven thirty?"},
+    {tag:"そのまま", jp:"Eleven twenty.", en:"Okay, I'll be there before eleven twenty."},
+    {tag:"そのまま", jp:"Do you want me to start cooking right now, or in twenty minutes?",
+      en:"I'll be there in about twenty minutes."},
+    {tag:"そのまま", jp:"All right, thank you.", en:"Thank you."},
+
+    {tag:"言い方が変わっても", jp:"Hi, what can I get you?",
+      en:"Can I get a 6-piece chicken wing and French fries?"},
+    {tag:"言い方が変わっても", jp:"How many?", en:"Six."},
+    {tag:"言い方が変わっても", jp:"Anything else for you today?", en:"That's it. How much is that?"},
+    {tag:"言い方が変わっても", jp:"Twelve fifty.", en:"Okay."},
+    {tag:"言い方が変わっても", jp:"About ten minutes.", en:"What time do you close?"},
+    {tag:"言い方が変わっても", jp:"We're open till eleven.", en:"Eleven, or eleven thirty?"},
+    {tag:"言い方が変わっても", jp:"Sorry, what was that?",
+      en:"A 6-piece chicken wing and French fries."},
+    {tag:"言い方が変わっても", jp:"For here or to go?", en:"To go, please."},
+    {tag:"言い方が変わっても", jp:"Cash or card?", en:"Card, please."}
+  ]},
+
   { id:"broken", name:"崩れた入力", promptLang:"en", items:[
     {tag:"崩れた入力", jp:"How do you think?",      en:"Sorry — about what?"},
     {tag:"崩れた入力", jp:"How is your dog called?", en:"She's Hana."},
