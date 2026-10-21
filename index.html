@@ -314,7 +314,7 @@ header .streak b{color:var(--accent);font-size:15px}
     <h2>控え</h2>
     <button class="btn sub" id="btnExport">型を書き出す</button>
     <button class="btn sub" id="btnImport">型を読み込む</button>
-    <button class="btn danger" id="btnReset">最初の20型に戻す</button>
+    <button class="btn danger" id="btnReset">デッキを最初の状態に戻す</button>
     <input type="file" id="fileIn" accept="application/json" hidden>
   </div>
 
@@ -474,7 +474,16 @@ async function api(method, body, at){
     throw { code:"net", message:"置き場に届きませんでした" };
   }
   let j = null; try{ j = await res.json(); }catch(e){}
-  if(res.ok) return j || {};
+  /* 置き場でない場所に当たっていないか確かめる。
+     このアプリ自身のオリジンは、どの道でも index.html を 200 で返す作りなので、
+     「中身を見ずに成功」にすると、つながっていないのに成功と出てしまう。 */
+  if(res.ok){
+    if(!j || typeof j !== "object" || Array.isArray(j))
+      throw { code:"net", message:"そこは記録の置き場ではありません。URL を確かめてください" };
+    if(method === "GET" && typeof j.rev === "undefined")
+      throw { code:"net", message:"そこは記録の置き場ではありません。URL を確かめてください" };
+    return j;
+  }
   if(res.status === 401) throw { code:"auth", message:"鍵が違います" };
   if(res.status === 409) throw { code:"conflict", message:"ほかの端末が先に書きました", j };
   if(res.status === 404) throw { code:"net", message:"その場所に /api/state がありません" };
@@ -522,7 +531,7 @@ async function pushDone(){
     const next = patchBody(got.body, day);
     try{
       await api("PUT", JSON.stringify({ body: next, rev: got.rev | 0 }));
-      log = logFromBody(next);
+      log = Object.assign({}, log, logFromBody(next));
       lsPut(K.log, JSON.stringify(log));
       return { ok:true };
     }catch(e){
@@ -538,7 +547,8 @@ async function pullLog(){
   if(!cfOn()) return;
   try{
     const got = await api("GET");
-    log = logFromBody(got.body);
+    /* つなぐ前にこの端末だけで積んだ日を消さないよう、置き換えずに足す */
+    log = Object.assign({}, log, logFromBody(got.body));
     lsPut(K.log, JSON.stringify(log));
     renderStreak();
   }catch(e){}
@@ -626,7 +636,11 @@ function say(text, lang){
       u.onerror = () => fin(false);
       synth.speak(u);
       /* 読み上げが黙って死ぬ端末があるので、長さから出した上限で必ず抜ける */
-      setTimeout(() => fin(false), 2500 + text.length * 120);
+      setTimeout(() => {
+        /* 解くだけでは読み上げが続き、次の無音に音が食い込む */
+        if(!done){ try{ synth.cancel(); }catch(e){} }
+        fin(false);
+      }, 2500 + text.length * 120);
     }catch(e){ fin(false); }
   });
 }
@@ -771,6 +785,7 @@ function stopRun(){
 /* ===================== 画面を描く ===================== */
 function renderDeckBtn(){
   $("#btnDeck").textContent = "デッキ：" + decks[deckIx].name;
+  if(!running) $("#btnStart").textContent = log[today()] ? "もう一度" : "はじめる";
 }
 function renderList(){
   const seg = $("#listDeck");
@@ -922,7 +937,7 @@ $("#fileIn").onchange = e => {
   e.target.value = "";
 };
 $("#btnReset").onclick = () => {
-  if(!confirm("足した型は消えて、最初の20型に戻ります。よろしいですか")) return;
+  if(!confirm("自分で足した型は消えて、デッキが最初の状態（20の型・会話・崩れた入力）に戻ります。よろしいですか")) return;
   decks = JSON.parse(JSON.stringify(DEFAULT_DECKS));
   deckIx = 0; lsPut(K.deck, 0); lsPut(K.decksrev, DECKS_REV); saveDecks();
   renderDeckBtn(); renderList();
@@ -974,7 +989,7 @@ $("#btnCfSave").onclick = async () => {
   $("#cfState").textContent = "試しています…";
   try{
     const got = await api("GET");
-    log = logFromBody(got.body);
+    log = Object.assign({}, log, logFromBody(got.body));
     lsPut(K.log, JSON.stringify(log));
     renderStreak();
     $("#cfState").innerHTML = "<b>つながりました。</b>Daily Reps の記録から、2秒ドリルをやった日を "
