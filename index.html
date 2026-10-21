@@ -397,8 +397,14 @@ const K = {
   decks:"s2.decks", gap:"s2.gap", after:"s2.after", rate:"s2.rate",
   vja:"s2.vja", ven:"s2.ven", hide:"s2.hide", wake:"s2.wake",
   theme:"s2.theme", deck:"s2.deck", log:"s2.log",
-  cfurl:"s2.cfurl", cfkey:"s2.cfkey"
+  cfurl:"s2.cfurl", cfkey:"s2.cfkey", decksrev:"s2.decksrev"
 };
+
+/* 既定のデッキを足したとき、すでに使っている端末にも届かせるための版番号。
+   これが無いと、一度でも型を触った端末は localStorage の控えを持つので、
+   こちらでデッキを増やしても一生出てこない。
+   1 = 20の型＋崩れた入力 ／ 2 = 会話：注文する を足した */
+const DECKS_REV = 2;
 function ls(k, d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
 function lsPut(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
 function lsJson(k, d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
@@ -406,14 +412,41 @@ function lsJson(k, d){ try{ const v=localStorage.getItem(k); return v?JSON.parse
 const $  = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
-let decks   = lsJson(K.decks, null) || JSON.parse(JSON.stringify(DEFAULT_DECKS));
+/* 既定のデッキを新しくしつつ、自分で足した型は残す。
+   既定にある型は既定のものに戻る（Daily Reps の TASKS_REV と同じ考え方）。
+   既定に無いデッキ（自分で作ったもの）はそのまま残す。 */
+function upgradeDecks(stored){
+  if(!Array.isArray(stored) || !stored.length) return JSON.parse(JSON.stringify(DEFAULT_DECKS));
+  const key = x => (x && x.jp || "") + "\u0000" + (x && x.en || "");
+  const out = DEFAULT_DECKS.map(def => {
+    const old = stored.find(d => d && d.id === def.id);
+    const items = def.items.map(x => ({...x}));
+    if(old && Array.isArray(old.items)){
+      const have = new Set(items.map(key));
+      old.items.forEach(x => { if(x && !have.has(key(x))) items.push({...x}); });
+    }
+    return {...def, items};
+  });
+  stored.forEach(d => { if(d && d.id && !DEFAULT_DECKS.some(x => x.id === d.id)) out.push(d); });
+  return out;
+}
+
+let decks = (function(){
+  const stored = lsJson(K.decks, null);
+  if(!stored) return JSON.parse(JSON.stringify(DEFAULT_DECKS));
+  if((+ls(K.decksrev, 0)) >= DECKS_REV) return stored;
+  const up = upgradeDecks(stored);
+  try{ localStorage.setItem(K.decks, JSON.stringify(up)); }catch(e){}
+  return up;
+})();
+try{ localStorage.setItem(K.decksrev, String(DECKS_REV)); }catch(e){}
 let gap     = +ls(K.gap, 3);
 let after   = +ls(K.after, 1);
 let rate    = +ls(K.rate, 0.95);
 let hideAns = ls(K.hide, "1") === "1";
 let wantWake= ls(K.wake, "0") === "1";
 let theme   = ls(K.theme, "auto");
-let deckIx  = +ls(K.deck, 0);
+let deckIx  = Math.min(Math.max(0, +ls(K.deck, 0)), decks.length - 1);
 let log     = lsJson(K.log, {});   /* {"2026-10-19": true} */
 
 function saveDecks(){ lsPut(K.decks, JSON.stringify(decks)); }
@@ -880,7 +913,7 @@ $("#fileIn").onchange = e => {
     try{
       const d = JSON.parse(r.result);
       if(!Array.isArray(d) || !d.length || !Array.isArray(d[0].items)) throw 0;
-      decks = d; deckIx = 0; lsPut(K.deck, 0); saveDecks();
+      decks = d; deckIx = 0; lsPut(K.deck, 0); lsPut(K.decksrev, DECKS_REV); saveDecks();
       renderDeckBtn(); renderList();
       alert("読み込みました");
     }catch(err){ alert("この控えは読み込めませんでした"); }
@@ -891,7 +924,7 @@ $("#fileIn").onchange = e => {
 $("#btnReset").onclick = () => {
   if(!confirm("足した型は消えて、最初の20型に戻ります。よろしいですか")) return;
   decks = JSON.parse(JSON.stringify(DEFAULT_DECKS));
-  deckIx = 0; lsPut(K.deck, 0); saveDecks();
+  deckIx = 0; lsPut(K.deck, 0); lsPut(K.decksrev, DECKS_REV); saveDecks();
   renderDeckBtn(); renderList();
 };
 

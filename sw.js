@@ -1,5 +1,5 @@
 /* 2秒ドリル。通信は一切しないので、初回に読んだら以後は全部キャッシュから返す。 */
-const CACHE = "s2-v1";
+const CACHE = "s2-v2";
 const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon.png"];
 
 self.addEventListener("install", e => {
