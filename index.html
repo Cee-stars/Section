@@ -403,8 +403,9 @@ const K = {
 /* 既定のデッキを足したとき、すでに使っている端末にも届かせるための版番号。
    これが無いと、一度でも型を触った端末は localStorage の控えを持つので、
    こちらでデッキを増やしても一生出てこない。
-   1 = 20の型＋崩れた入力 ／ 2 = 会話：注文する を足した */
-const DECKS_REV = 2;
+   1 = 20の型＋崩れた入力 ／ 2 = 会話：注文する を足した
+   3 = 版の刻み方の不具合を直し、「注文する」が届いていない端末に配り直す */
+const DECKS_REV = 3;
 function ls(k, d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
 function lsPut(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
 function lsJson(k, d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
@@ -433,7 +434,15 @@ function upgradeDecks(stored){
 
 let decks = (function(){
   const stored = lsJson(K.decks, null);
-  if(!stored) return JSON.parse(JSON.stringify(DEFAULT_DECKS));
+  /* 初回は控えも一緒に保存する。
+     保存せずに版だけ刻むと「この端末は最新だ」という印だけが残り、
+     あとで古い中身が保存された時点で、以後の配り直しが一切届かなくなる。
+     版と中身は必ず同時に書く。 */
+  if(!stored){
+    const def = JSON.parse(JSON.stringify(DEFAULT_DECKS));
+    try{ localStorage.setItem(K.decks, JSON.stringify(def)); }catch(e){}
+    return def;
+  }
   if((+ls(K.decksrev, 0)) >= DECKS_REV) return stored;
   const up = upgradeDecks(stored);
   try{ localStorage.setItem(K.decks, JSON.stringify(up)); }catch(e){}
