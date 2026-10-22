@@ -270,7 +270,7 @@ header .streak b{color:var(--accent);font-size:15px}
     <h2>画面</h2>
     <div class="set">
       <label>答えを先に出さない
-        <span class="note">オンのほうが練習になります。音だけで使うなら関係ありません</span>
+        <span class="note">オンのほうが練習になります。音だけで使うなら関係ありません。会話のデッキは、相手のセリフしか手がかりが無いので、オンでも答えを出します</span>
       </label>
       <button class="sw" id="swHide" data-on="1"><i></i></button>
     </div>
@@ -355,7 +355,10 @@ const DEFAULT_DECKS = [
     {tag:"出口",         jp:"話せてよかった、と別れる",   en:"Nice talking to you!"},
     {tag:"出口",         jp:"よい旅を",                   en:"Enjoy your trip!"}
   ]},
-  { id:"order", name:"会話：注文する", promptLang:"en", items:[
+  /* showAns: 答えを隠さないデッキ。en が「正解」ではなく「通る言い方の一例」で、
+     かつ相手のセリフしか手がかりが無いので、隠すと何を言う側なのか分からなくなる。
+     場面もののデッキ（会話・自分から声をかける）は、これを付ける。 */
+  { id:"order", name:"会話：注文する", promptLang:"en", showAns:true, items:[
     /* 店員のセリフを読み上げ、無音のあいだに客として返す。
        前半は台本どおり。後半は同じ場面で店員の言い方だけ変えてある。
        覚えた通りに言う店員はいないので、そこまでやって初めて本番で動く。 */
@@ -404,8 +407,9 @@ const K = {
    これが無いと、一度でも型を触った端末は localStorage の控えを持つので、
    こちらでデッキを増やしても一生出てこない。
    1 = 20の型＋崩れた入力 ／ 2 = 会話：注文する を足した
-   3 = 版の刻み方の不具合を直し、「注文する」が届いていない端末に配り直す */
-const DECKS_REV = 3;
+   3 = 版の刻み方の不具合を直し、「注文する」が届いていない端末に配り直す
+   4 = 会話デッキに showAns を付ける（答えを隠すと手がかりが無くなるため） */
+const DECKS_REV = 4;
 function ls(k, d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
 function lsPut(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
 function lsJson(k, d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
@@ -743,7 +747,7 @@ async function run(){
     if(stopped) break;
 
     setStage({ tag: (i+1) + " / " + n + "　" + (it.tag || ""),
-               prompt: it.jp, answer: it.en, masked: hideAns,
+               prompt: it.jp, answer: it.en, masked: hideAns && !deck.showAns,
                hint: "いま声に出す" });
     await gapWait(gap);
     if(stopped) break;
